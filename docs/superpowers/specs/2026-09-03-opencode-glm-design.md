@@ -38,6 +38,7 @@ opencode의 설치·버전 고정·프로바이더 설정·tool calling 배관·
 | SDK | `@ai-sdk/openai-compatible` (바이너리에 번들됨, 런타임 npm 설치 없음) | `/v1/chat/completions` 사용. `reasoning_content` 델타 파싱 지원 |
 | mock 방식 | Python FastAPI 스크립트 mock | 시스템 Python 3.10에 FastAPI/uvicorn/pytest/httpx 기설치. 결정론적이라 자동 검증 가능 |
 | mock 모델명 | `glm-5.3-flash` | 사내 배포 예정 모델명. opencode에 `glm-5.3` 특수 처리 없음 (temperature 자동 지정은 4.6/4.7만, variants 특수 처리는 5.2만 해당) |
+| 기존 glm-shim 대응 | `bin/opencode-glm` 래퍼 + `config/` | 기존 glm-shim은 Claude Code의 환경변수(base URL, 토큰, 모델)를 GLM으로 맞춰 주는 설정 래퍼였음. opencode는 프로바이더를 환경변수가 아니라 `opencode.json`으로 정하므로, 래퍼가 `OPENCODE_CONFIG`와 오프라인 플래그를 설정해 같은 역할을 함. 프로토콜 변환 계층은 필요 없음 (opencode가 OpenAI 호환 API를 직접 사용) |
 
 ## 4. 디렉터리 구조
 
