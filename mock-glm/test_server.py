@@ -111,3 +111,88 @@ def test_invalid_json_is_400(client):
 def test_missing_messages_is_400(client):
     r = client.post("/v1/chat/completions", json={"model": server.MODEL})
     assert r.status_code == 400
+
+
+def sse_events(response):
+    events = []
+    for line in response.iter_lines():
+        if not line.startswith("data: "):
+            continue
+        payload = line[len("data: "):]
+        events.append(payload if payload == "[DONE]" else json.loads(payload))
+    return events
+
+
+def test_stream_tool_call_chunk_order(client):
+    b = body([{"role": "user", "content": "smoke"}], TOOLS, stream=True, stream_options={"include_usage": True})
+    with client.stream("POST", "/v1/chat/completions", json=b) as r:
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/event-stream")
+        events = sse_events(r)
+    assert events[-1] == "[DONE]"
+    chunks = events[:-1]
+    assert all(c["object"] == "chat.completion.chunk" and c["model"] == server.MODEL for c in chunks)
+    assert chunks[0]["choices"][0]["delta"]["role"] == "assistant"
+    reasoning = "".join(c["choices"][0]["delta"].get("reasoning_content", "") for c in chunks if c["choices"])
+    assert reasoning == "".join(server.REASONING)
+    tool_deltas = [c["choices"][0]["delta"]["tool_calls"][0] for c in chunks if c["choices"] and "tool_calls" in c["choices"][0]["delta"]]
+    assert tool_deltas[0]["index"] == 0
+    assert tool_deltas[0]["id"] == "call_mock_1"
+    assert tool_deltas[0]["type"] == "function"
+    assert tool_deltas[0]["function"]["name"] == "bash"
+    arguments = "".join(d["function"].get("arguments", "") for d in tool_deltas)
+    assert json.loads(arguments) == {"command": f"echo {server.TOOL_OK}"}
+    finish = [c["choices"][0]["finish_reason"] for c in chunks if c["choices"] and c["choices"][0]["finish_reason"]]
+    assert finish == ["tool_calls"]
+    usage_chunks = [c for c in chunks if c["choices"] == []]
+    assert len(usage_chunks) == 1
+    assert usage_chunks[0]["usage"]["total_tokens"] > 0
+    assert chunks[-1] is usage_chunks[0]
+
+
+def test_stream_without_include_usage_has_no_usage_chunk(client):
+    b = body([{"role": "user", "content": "smoke"}], TOOLS, stream=True)
+    with client.stream("POST", "/v1/chat/completions", json=b) as r:
+        events = sse_events(r)
+    assert events[-1] == "[DONE]"
+    assert all(c["choices"] for c in events[:-1])
+    assert events[-2]["choices"][0]["finish_reason"] == "tool_calls"
+
+
+def test_stream_final_text(client):
+    messages = [
+        {"role": "user", "content": "smoke"},
+        {"role": "assistant", "content": None, "tool_calls": [{"id": "call_mock_1", "type": "function", "function": {"name": "bash", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "call_mock_1", "content": "GLM_MOCK_TOOL_OK\n"},
+    ]
+    with client.stream("POST", "/v1/chat/completions", json=body(messages, TOOLS, stream=True)) as r:
+        events = sse_events(r)
+    text = "".join(c["choices"][0]["delta"].get("content", "") for c in events[:-1] if c["choices"])
+    assert text.startswith("도구 실행 결과: GLM_MOCK_TOOL_OK")
+    assert text.endswith(server.DONE)
+
+
+def test_stream_request_logged_with_stream_true(client, tmp_path):
+    b = body([{"role": "user", "content": "smoke"}], TOOLS, stream=True, stream_options={"include_usage": True})
+    with client.stream("POST", "/v1/chat/completions", json=b) as r:
+        sse_events(r)
+    entry = json.loads((tmp_path / "requests.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert entry["stream"] is True
+    assert entry["params"]["stream_options"] == {"include_usage": True}
+
+
+def test_api_key_enforced_when_configured(client, monkeypatch):
+    monkeypatch.setattr(server, "API_KEY", "secret")
+    b = body([{"role": "user", "content": "x"}])
+    assert client.post("/v1/chat/completions", json=b).status_code == 401
+    assert client.post("/v1/chat/completions", json=b, headers={"Authorization": "Bearer wrong"}).status_code == 401
+    ok = client.post("/v1/chat/completions", json=b, headers={"Authorization": "Bearer secret"})
+    assert ok.status_code == 200
+    assert client.get("/v1/models").status_code == 200
+
+
+def test_auth_status_logged(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(server, "API_KEY", "secret")
+    client.post("/v1/chat/completions", json=body([{"role": "user", "content": "x"}]), headers={"Authorization": "Bearer secret"})
+    entry = json.loads((tmp_path / "requests.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert entry["auth"] == "ok"

@@ -14,7 +14,7 @@ import time
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 MODEL = os.environ.get("MOCK_MODEL", "glm-5.3-flash")
 API_KEY: str | None = os.environ.get("MOCK_API_KEY") or None
@@ -122,6 +122,38 @@ def completion_json(reply: dict, usage: dict) -> dict:
     }
 
 
+def _sse(obj: dict) -> str:
+    return "data: " + json.dumps(obj, ensure_ascii=False) + "\n\n"
+
+
+def stream_response(reply: dict, usage: dict, include_usage: bool):
+    cid = _next_id()
+    created = int(time.time())
+
+    def chunk(delta: dict, finish: str | None = None) -> dict:
+        return {
+            "id": cid,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": MODEL,
+            "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+        }
+
+    yield _sse(chunk({"role": "assistant", "content": ""}))
+    for piece in reply["reasoning"]:
+        yield _sse(chunk({"reasoning_content": piece}))
+    if reply["tool_call"]:
+        tc = reply["tool_call"]
+        yield _sse(chunk({"tool_calls": [{"index": 0, "id": tc["id"], "type": "function", "function": {"name": tc["name"], "arguments": ""}}]}))
+        yield _sse(chunk({"tool_calls": [{"index": 0, "function": {"arguments": tc["arguments"]}}]}))
+    for piece in reply["text"]:
+        yield _sse(chunk({"content": piece}))
+    yield _sse(chunk({}, reply["finish"]))
+    if include_usage:
+        yield _sse({"id": cid, "object": "chat.completion.chunk", "created": created, "model": MODEL, "choices": [], "usage": usage})
+    yield "data: [DONE]\n\n"
+
+
 @app.get("/v1/models")
 async def models() -> dict:
     return {"object": "list", "data": [{"id": MODEL, "object": "model", "owned_by": "vllm"}]}
@@ -165,4 +197,7 @@ async def chat_completions(request: Request):
         }
     )
 
+    if stream:
+        include_usage = bool((payload.get("stream_options") or {}).get("include_usage"))
+        return StreamingResponse(stream_response(reply, usage, include_usage), media_type="text/event-stream")
     return JSONResponse(completion_json(reply, usage))
