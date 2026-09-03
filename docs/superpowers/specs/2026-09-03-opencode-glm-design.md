@@ -171,7 +171,7 @@ FastAPI 단일 파일. 실행: `python3 -m uvicorn server:app --host 127.0.0.1 -
 응답 형식:
 - `stream: false` → 표준 `chat.completion` 객체. 시나리오 1은 `message.tool_calls`, 시나리오 1의 reasoning은 `message.reasoning_content`.
 - `stream: true` → `text/event-stream`. 각 청크는 `data: {"id":"chatcmpl-mock-<n>","object":"chat.completion.chunk","created":<epoch>,"model":MOCK_MODEL,"choices":[{"index":0,"delta":{...},"finish_reason":null}]}`. 첫 청크 delta에 `role: assistant`. 종료 청크는 `delta: {}`와 `finish_reason`. `stream_options.include_usage`가 true면 그 뒤에 `choices: []`와 `usage` 청크. 마지막은 `data: [DONE]`.
-- usage: `prompt_tokens`는 메시지 content 총 길이 // 4, `completion_tokens`는 생성 텍스트 길이 // 4 (0이면 1), `total_tokens`는 합.
+- usage: `prompt_tokens`는 메시지 content 총 문자 수 // 4 (content가 배열이면 `type: text` 파트의 `text` 길이 합, tool_calls의 arguments 길이 포함), `completion_tokens`는 생성 텍스트(reasoning 포함) 길이 // 4 (0이면 1), `total_tokens`는 합.
 
 로깅: 요청마다 `MOCK_LOG`에 한 줄 JSON 추가.
 ```
@@ -200,6 +200,7 @@ FastAPI 단일 파일. 실행: `python3 -m uvicorn server:app --host 127.0.0.1 -
 5. `logs/requests.jsonl`의 이번 실행분에서: `scenario == tool_call`인 항목의 `stream == true`, `tool_names`에 `bash` 포함, `params`에 `thinking` 키 없음, `params.temperature == 1.0`, `params.stream_options.include_usage == true`.
 6. opencode 로그 디렉터리(`~/.local/share/opencode/log/`)의 최신 파일에 `Failed to fetch models.dev` 문자열이 없음.
 7. 실패한 단정은 항목 번호와 함께 stderr에 출력하고 종료 코드 1. 전부 통과 시 `VERIFY OK` 출력, 종료 코드 0.
+8. `--live` 옵션(실서버 검증용): 1번(mock 기동)과 5번(mock 로그 단정)을 건너뛰고, 4번은 `GLM_MOCK_*` 문자열 대신 "`tool_use` completed 이벤트 1개 이상, `text` 이벤트 1개 이상, `error` 없음"만 단정한다. 프롬프트는 "현재 디렉터리 파일 목록을 셸 명령으로 확인하고 한 줄로 요약해줘"로 바꿔 tool 호출을 유도한다.
 
 JSON 이벤트의 필드명(`part.tool`, `part.state.status`, `part.state.output`, `part.text`)은 `packages/opencode/src/cli/cmd/run.ts`의 `emit("tool_use", { part })`/`emit("text", { part })` 기준이며, 구현 시 실제 출력으로 재확인한다.
 
