@@ -100,6 +100,7 @@ opencode-glm/
   "autoupdate": false,
   "model": "company-glm/glm-5.3-flash",
   "small_model": "company-glm/glm-5.3-flash",
+  "enabled_providers": ["company-glm"],
   "provider": {
     "company-glm": {
       "npm": "@ai-sdk/openai-compatible",
@@ -136,6 +137,7 @@ opencode-glm/
 - `baseURL`은 `GLM_BASE_URL` 환경변수로 덮어쓸 수 있게 `{env:GLM_BASE_URL}`을 쓰지 않는다. 미설정 시 빈 문자열이 되어 실패하기 때문. 실서버 전환은 이 파일의 `baseURL`을 수정한다.
 - `limit`은 실서버 `--max-model-len`에 맞춰 조정한다. 런북에 명시.
 - `experimental.policies`는 전 프로바이더 deny 후 `company-glm`만 allow. 사내 계정에 다른 클라우드 자격증명이 있어도 사용 불가.
+- `enabled_providers: ["company-glm"]`를 함께 둔다. 스파이크에서 policies만으로는 `opencode models` 목록에 내장 `opencode/*` 무료 모델이 남았고, allow-list를 추가하면 `company-glm`만 남는 것을 확인했다.
 - LSP·formatter는 opencode 기본이 비활성이므로 설정하지 않는다.
 
 ### 5.4 config/opencode.env
