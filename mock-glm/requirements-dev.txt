@@ -1,0 +1,4 @@
+# mock 서버 테스트(pytest + FastAPI TestClient)용. 실행 패키지도 함께 설치된다.
+-r requirements.txt
+pytest==9.0.2
+httpx==0.28.1
