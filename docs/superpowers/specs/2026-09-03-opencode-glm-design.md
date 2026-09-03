@@ -224,7 +224,7 @@ JSON 이벤트의 필드명(`part.tool`, `part.state.status`, `part.state.output
    | GLM-5 / 5.1 / 5.x (5.3-flash 포함) | `glm47` | `glm45` | `--enable-auto-tool-choice --chat-template-content-format=string`. 5.3은 배포 시점 vLLM 버전의 파서 목록으로 재확인 |
 
    `--served-model-name`은 `opencode.json`의 모델 키와 일치해야 한다. thinking은 vLLM 기본 on이며, 끄려면 모델 `options`에 `"chat_template_kwargs": {"enable_thinking": false}` (opencode가 모델 options를 요청 본문에 합침).
-7. 검증: `verify.sh`를 실서버 대상으로 돌리되 mock 전용 단정(4, 5)은 건너뛰는 `--live` 옵션 사용. `opencode debug config`로 최종 설정 확인.
+7. 검증: `verify.sh`를 실서버 대상으로 돌리되 mock 기동(1)과 mock 로그 단정(5)을 건너뛰고 4번 단정을 완화하는 `--live` 옵션 사용. `opencode debug config`로 최종 설정 확인.
 8. 버전 업데이트 절차: 태그 선정 기준(bugfix-only 릴리스, 태그 후 1주 이상 회귀 없음, 릴리스 노트에 OpenAI 호환 관련 수정 확인), `checksums.txt` 갱신, verify 재실행.
 
 ### 5.9 README.md

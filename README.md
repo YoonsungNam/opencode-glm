@@ -23,10 +23,12 @@ scripts/mock.sh stop
 | `config/opencode.json` | `company-glm` custom provider(OpenAI 호환), 기본 모델, share/autoupdate 끔, provider allow-list |
 | `config/opencode.env` | `OPENCODE_DISABLE_AUTOUPDATE/MODELS_FETCH/LSP_DOWNLOAD=1` (폐쇄망 하드닝) |
 | `scripts/install-opencode.sh` | 고정 버전 설치. `scripts/checksums.txt` 와 sha256 대조, `--version` 확인 |
-| `scripts/mock.sh` | mock 서버 start/stop/status (`MOCK_PORT`, 기본 8000) |
+| `scripts/mock.sh` | mock 서버 start/stop/status (`MOCK_PORT`, 기본 8000) verify.sh 는 기본 포트 8000 과 `logs/requests.jsonl` 을 전제로 하므로 verify 실행 시에는 `MOCK_PORT`/`MOCK_LOG` 를 설정하지 않는다 |
 | `scripts/verify.sh` | 엔드투엔드 스모크. `--live` 는 실서버용 |
 | `mock-glm/server.py` | FastAPI mock. `/v1/models`, `/v1/chat/completions`(SSE). 요청은 `logs/requests.jsonl` 에 기록 |
 | `docs/runbook-onprem.md` | 사내 반입·배포·vLLM 플래그 런북 |
+
+참고: 래퍼 경로에서는 현재 디렉터리의 프로젝트 `opencode.json` 이 `OPENCODE_CONFIG` 보다 나중에 병합되어 `model`/`enabled_providers` 를 덮어쓸 수 있다. 사내 배포에서는 `/etc/opencode/opencode.json`(관리 설정) 이 마지막에 병합되므로 이 문제가 없다.
 
 ## 실서버로 전환
 

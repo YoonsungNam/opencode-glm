@@ -9,6 +9,7 @@
 | 항목 | 출처 | 비고 |
 |---|---|---|
 | `opencode-linux-x64.tar.gz` | `https://github.com/anomalyco/opencode/releases/download/v1.18.27/` | AVX2 없는 CPU면 `opencode-linux-x64-baseline.tar.gz`, ARM 이면 `opencode-linux-arm64.tar.gz` |
+| ripgrep(`rg`) 바이너리 | 배포판 패키지(`apt install ripgrep` 등) 또는 `https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/` 의 tarball | opencode 의 grep/glob 도구와 skill 탐색이 `rg` 를 쓴다. PATH 에 없으면 GitHub 에서 자동 다운로드를 시도하며 이를 끄는 플래그가 없다. `/usr/local/bin/rg` 또는 `~/.cache/opencode/bin/rg` 에 두면 다운로드하지 않는다 |
 | `scripts/checksums.txt` | 이 리포 | 반입 전 온라인 PC에서 `sha256sum` 으로 값을 재확인한다 |
 | 이 리포 전체 | `git archive -o opencode-glm.tar HEAD` | 설정·스크립트·문서 |
 
@@ -59,7 +60,8 @@ export OPENCODE_DISABLE_LSP_DOWNLOAD=1
 
 - 사내 CA: `export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/company-ca.pem`
 - 프록시가 있으면 `HTTPS_PROXY` 를 쓰되 로컬 서버와 vLLM 은 제외: `export NO_PROXY=localhost,127.0.0.1,<vllm-host>`
-- 차단해도 되는 외부 호스트(오프라인 플래그로 호출 자체를 막는다): `api.github.com`(업데이트 체크), `models.opencode.ai`(모델 카탈로그 갱신), `github.com`/`registry.npmjs.org`(LSP·플러그인 다운로드), `opncd.ai`(share, 설정에서 disabled)
+- 차단해도 되는 외부 호스트(아래 예외 하나를 빼면 오프라인 플래그로 호출 자체를 막는다): `api.github.com`(업데이트 체크), `models.opencode.ai`(모델 카탈로그 갱신), `github.com`/`registry.npmjs.org`(LSP·플러그인 다운로드), `opncd.ai`(share, 설정에서 disabled)
+- 예외: `github.com` 의 ripgrep 15.1.0 자동 다운로드는 플래그로 막을 수 없다. §1 대로 `rg` 를 사전 설치해 회피한다. `command -v rg` 로 확인.
 
 ## 6. vLLM 서버 플래그 (공식 레시피 기준)
 
@@ -89,6 +91,8 @@ vllm serve zai-org/GLM-5.3-Flash \
 scripts/verify.sh --live      # 실서버: tool call 1회 이상 + 텍스트 응답 + 오류 없음
 opencode models company-glm   # company-glm/glm-5.3-flash 만 보여야 한다
 ```
+
+`verify.sh --live` 는 `rg` 가 PATH 에 없으면 즉시 실패한다(위 예외 때문).
 
 문제 시: `~/.local/share/opencode/log/opencode.log`, `opencode debug config`.
 

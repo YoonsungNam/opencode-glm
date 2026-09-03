@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 엔드투엔드 스모크: mock 기동 -> 버전 -> 모델 목록 -> opencode run(tool call) -> 로그 단정
+# 엔드투엔드 스모크: 환경 가드 -> mock 기동 -> 버전 -> 모델 목록 -> opencode run(tool call) -> 로그 단정
 #   scripts/verify.sh          # mock 대상
 #   scripts/verify.sh --live   # config/opencode.json 의 실서버 대상 (mock 단정 생략)
 set -euo pipefail
@@ -12,16 +12,38 @@ EXPECTED_VERSION="1.18.27"
 LOG_DIR="$ROOT/logs"
 REQ_LOG="$LOG_DIR/requests.jsonl"
 OC_LOG="${XDG_DATA_HOME:-$HOME/.local/share}/opencode/log/opencode.log"
+MODELS_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/opencode/models.json"
 mkdir -p "$LOG_DIR"
 
 fail() { echo "VERIFY FAIL [$1]: $2" >&2; exit 1; }
 count_lines() { if [[ -f "$1" ]]; then wc -l < "$1"; else echo 0; fi; }
+
+# 0. environment guards
+if [[ $LIVE -eq 0 ]]; then
+  if [[ -n "${MOCK_PORT:-}" && "${MOCK_PORT}" != "8000" ]]; then
+    fail 0 "MOCK_PORT=$MOCK_PORT is not supported here: config/opencode.json targets http://127.0.0.1:8000/v1 — unset MOCK_PORT"
+  fi
+  if [[ -n "${MOCK_LOG:-}" ]]; then
+    fail 0 "MOCK_LOG override is not supported here: verify reads $REQ_LOG — unset MOCK_LOG"
+  fi
+fi
+if ! command -v rg >/dev/null 2>&1; then
+  if [[ $LIVE -eq 1 ]]; then
+    fail 0 "ripgrep (rg) not on PATH: opencode would try to download it from github.com (see docs/runbook-onprem.md §1)"
+  fi
+  echo "warning: ripgrep (rg) not on PATH; opencode will try to download it from github.com on first grep/glob use" >&2
+fi
 
 # 1. mock
 if [[ $LIVE -eq 0 ]]; then
   "$ROOT/scripts/mock.sh" start || fail 1 "mock did not start"
   trap '"$ROOT/scripts/mock.sh" stop >/dev/null 2>&1 || true' EXIT
 fi
+
+# markers for incremental log checks
+REQ_BEFORE="$(count_lines "$REQ_LOG")"
+OC_BEFORE="$(count_lines "$OC_LOG")"
+RUN_START="$(date +%s)"
 
 # 2. version
 VERSION="$("$ROOT/bin/opencode-glm" --version 2>/dev/null | tail -n1 || true)"
@@ -31,10 +53,6 @@ echo "version ok: $VERSION"
 # 3. model listing
 "$ROOT/bin/opencode-glm" models company-glm 2>/dev/null | grep -qx "$MODEL" || fail 3 "$MODEL not listed by 'opencode models company-glm'"
 echo "model listed: $MODEL"
-
-# markers for incremental log checks
-REQ_BEFORE="$(count_lines "$REQ_LOG")"
-OC_BEFORE="$(count_lines "$OC_LOG")"
 
 # 4. run
 WORK="$(mktemp -d)"
@@ -65,6 +83,9 @@ if [[ -f "$OC_LOG" ]]; then
     fail 6 "opencode tried to fetch models.dev (offline flags not applied?)"
   fi
 fi
-echo "offline ok: no models.dev fetch in $OC_LOG"
+if [[ -f "$MODELS_CACHE" ]] && [[ "$(stat -c %Y "$MODELS_CACHE")" -ge "$RUN_START" ]]; then
+  fail 6 "models.dev catalog was fetched during this run ($MODELS_CACHE written; OPENCODE_DISABLE_MODELS_FETCH not applied?)"
+fi
+echo "offline ok: no models.dev fetch (log clean, $MODELS_CACHE not written)"
 
 echo "VERIFY OK"
