@@ -16,11 +16,20 @@ def main() -> int:
     path, skip = sys.argv[1], int(sys.argv[2])
     with open(path, encoding="utf-8") as f:
         lines = f.read().splitlines()[skip:]
-    entries = [json.loads(l) for l in lines if l.strip()]
+
+    problems = []
+    entries = []
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            problems.append(f"malformed JSON at line {skip + i + 1}")
+
     tool_calls = [e for e in entries if e.get("scenario") == "tool_call"]
     finals = [e for e in entries if e.get("scenario") == "final"]
 
-    problems = []
     if not tool_calls:
         problems.append("no tool_call request logged")
     else:
