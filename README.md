@@ -5,6 +5,8 @@ opencode(v1.18.27 고정)를 사내 GLM(vLLM) 서버에 연결해 쓰기 위한 
 
 ## 빠른 시작
 
+사내 설치 절차 전체는 [docs/install-guide.md](docs/install-guide.md), 운영·폐쇄망 반입은 [docs/runbook-onprem.md](docs/runbook-onprem.md) 참고.
+
 ```bash
 scripts/install-opencode.sh        # GitHub Releases 에서 v1.18.27 다운로드·검증·설치 (.bin/opencode)
 scripts/verify.sh                  # mock 기동 → opencode run 으로 tool call 흐름 자동 검증 → VERIFY OK
@@ -37,13 +39,39 @@ scripts/mock.sh stop
 3. `models` 키(`glm-5.3-flash`)는 vLLM `--served-model-name` 과 같아야 한다. `limit.context/output` 은 `--max-model-len` 에 맞춘다.
 4. `scripts/verify.sh --live` 로 확인한다.
 
+## 의존성
+
+| 구성 요소 | 파이썬 필요 | 필요한 것 |
+|---|---|---|
+| `.bin/opencode` (opencode 본체) | 아니오 | 단일 실행 파일. Linux x86_64, glibc (Ubuntu 22.04 / glibc 2.35 에서 검증). `rg`(ripgrep) 가 PATH 에 있어야 grep/glob 도구가 외부 다운로드 없이 동작 |
+| `bin/opencode-glm`, `scripts/install-opencode.sh`, `scripts/mock.sh`, `scripts/verify.sh` | 아니오 | bash, curl, tar, sha256sum, coreutils |
+| `scripts/verify_events.py`, `scripts/verify_mocklog.py` | **Python 3.10+ (표준 라이브러리만)** | 외부 패키지 없음. 실서버 검증(`verify.sh --live`)은 여기까지만 필요 |
+| `mock-glm/server.py` (mock 서버) | Python 3.10+ | `mock-glm/requirements.txt`: fastapi 0.139.0, uvicorn 0.50.0 |
+| `mock-glm/test_server.py` (pytest) | Python 3.10+ | `mock-glm/requirements-dev.txt`: 위 + pytest 9.0.2, httpx 0.28.1 |
+
+정리하면 **실서버만 쓰는 사내 설치에는 파이썬 패키지가 필요 없고**, mock 서버나 테스트를 돌릴 때만 위 패키지가 필요하다.
+
+파이썬 패키지 설치(venv 권장):
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r mock-glm/requirements-dev.txt       # 최상위 핀만
+# 또는 전이 의존성까지 그대로 재현 (Linux x86_64 / Python 3.10 에서 생성)
+pip install -r mock-glm/requirements.lock
+```
+
+venv 를 활성화한 셸에서 `scripts/mock.sh` / `scripts/verify.sh` 를 실행하면 그 venv 의 `python3` 가 쓰인다.
+인터넷이 없는 호스트에는 온라인 PC 에서 `pip download -r mock-glm/requirements.lock -d wheelhouse` 로 받아 옮긴 뒤
+`pip install --no-index --find-links wheelhouse -r mock-glm/requirements.lock` 로 설치한다.
+
 ## 개발
 
 ```bash
-cd mock-glm && python3 -m pytest -q      # mock 서버 테스트
+source .venv/bin/activate                # 위에서 만든 venv
+cd mock-glm && python3 -m pytest -q      # mock 서버 테스트 (15개)
 ```
 
-의존성은 `mock-glm/requirements.txt` (이 PC의 시스템 Python 3.10 에 이미 설치돼 있음).
+pytest 출력에 나오는 `StarletteDeprecationWarning` 등의 경고는 설치된 starlette/fastapi 버전의 안내 메시지이며 이 코드의 문제가 아니다.
 
 ## 왜 shim 이 없나
 

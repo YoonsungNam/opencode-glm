@@ -4,6 +4,8 @@
 
 ## 1. 반입 목록
 
+설치 대상 데스크톱이 인터넷에 연결돼 있으면 이 절은 필요 없다. `git clone` 후 [설치 가이드](install-guide.md) 를 따르면 설치 스크립트가 GitHub Releases 에서 직접 받는다. 아래는 외부 접근이 막힌 호스트용 반입 목록이다.
+
 온라인 PC에서 준비해 승인된 경로로 반입한다.
 
 | 항목 | 출처 | 비고 |
@@ -12,6 +14,7 @@
 | ripgrep(`rg`) 바이너리 | 배포판 패키지(`apt install ripgrep` 등) 또는 `https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/` 의 tarball | opencode 의 grep/glob 도구와 skill 탐색이 `rg` 를 쓴다. PATH 에 없으면 GitHub 에서 자동 다운로드를 시도하며 이를 끄는 플래그가 없다. `/usr/local/bin/rg` 또는 `~/.cache/opencode/bin/rg` 에 두면 다운로드하지 않는다 |
 | `scripts/checksums.txt` | 이 리포 | 반입 전 온라인 PC에서 `sha256sum` 으로 값을 재확인한다 |
 | 이 리포 전체 | `git archive -o opencode-glm.tar HEAD` | 설정·스크립트·문서 |
+| (선택) 파이썬 wheel 묶음 | 온라인 PC: `pip download -r mock-glm/requirements.lock -d wheelhouse` | mock 서버·pytest 를 폐쇄망에서도 돌릴 때만. 실서버 검증(`verify.sh --live`)은 Python 3.10 표준 라이브러리만 쓴다. 설치: `pip install --no-index --find-links wheelhouse -r mock-glm/requirements.lock` |
 
 x64 자산의 sha256: `4af5494f9433f59db8c1e344198f0ee72a50c06ec009fb4a8aeab4c2d4abd702`
 
