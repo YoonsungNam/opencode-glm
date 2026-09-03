@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# opencode 를 사내 GLM 설정으로 실행하는 래퍼.
+# - config/opencode.env 를 로드하고 OPENCODE_CONFIG 를 리포 절대경로로 고정한다.
+# - OPENCODE_GLM_BIN (기본 <repo>/.bin/opencode) 을 exec 한다.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+
+if [[ -f "$ROOT/config/opencode.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/config/opencode.env"
+  set +a
+fi
+export OPENCODE_CONFIG="$ROOT/config/opencode.json"
+
+BIN="${OPENCODE_GLM_BIN:-$ROOT/.bin/opencode}"
+if [[ ! -x "$BIN" ]]; then
+  echo "[opencode-glm] opencode binary not found: $BIN" >&2
+  echo "[opencode-glm] run: $ROOT/scripts/install-opencode.sh" >&2
+  exit 1
+fi
+
+if [[ -z "${GLM_API_KEY:-}" ]]; then
+  echo "[opencode-glm] warning: GLM_API_KEY is empty (ok for the mock, required for the real vLLM server)" >&2
+fi
+
+exec "$BIN" "$@"
