@@ -1,0 +1,5 @@
+# 이 PC의 시스템 Python 3.10 에 이미 설치된 버전. 새 환경이면: pip install -r requirements.txt
+fastapi==0.139.0
+uvicorn==0.50.0
+httpx==0.28.1
+pytest==9.0.2

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "share": "disabled",
+  "autoupdate": false,
+  "model": "company-glm/glm-5.3-flash",
+  "small_model": "company-glm/glm-5.3-flash",
+  "enabled_providers": ["company-glm"],
+  "provider": {
+    "company-glm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Company GLM (vLLM)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8000/v1",
+        "apiKey": "{env:GLM_API_KEY}",
+        "timeout": 600000
+      },
+      "models": {
+        "glm-5.3-flash": {
+          "name": "GLM-5.3-Flash (on-prem)",
+          "family": "glm",
+          "reasoning": true,
+          "tool_call": true,
+          "attachment": false,
+          "temperature": true,
+          "interleaved": { "field": "reasoning_content" },
+          "limit": { "context": 131072, "output": 32768 },
+          "modalities": { "input": ["text"], "output": ["text"] }
+        }
+      }
+    }
+  },
+  "experimental": {
+    "policies": [
+      { "effect": "deny", "action": "provider.use", "resource": "*" },
+      { "effect": "allow", "action": "provider.use", "resource": "company-glm" }
+    ]
+  }
+}
