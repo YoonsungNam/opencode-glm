@@ -37,7 +37,7 @@ opencode의 설치·버전 고정·프로바이더 설정·tool calling 배관·
 | provider ID | `company-glm` | opencode는 provider ID에 `zai`/`zhipuai`가 포함되면 Z.AI 클라우드 전용 `thinking: {type: enabled, clear_thinking: false}`를 요청 본문에 주입함 (`packages/opencode/src/provider/transform.ts`). vLLM에는 불필요하므로 회피 |
 | SDK | `@ai-sdk/openai-compatible` (바이너리에 번들됨, 런타임 npm 설치 없음) | `/v1/chat/completions` 사용. `reasoning_content` 델타 파싱 지원 |
 | mock 방식 | Python FastAPI 스크립트 mock | 시스템 Python 3.10에 FastAPI/uvicorn/pytest/httpx 기설치. 결정론적이라 자동 검증 가능 |
-| mock 모델명 | `glm-4.7` | open weights 모델. opencode가 `glm-4.7`에 temperature 1.0을 자동 적용하는 것 외 특수 처리 없음 |
+| mock 모델명 | `glm-5.3-flash` | 사내 배포 예정 모델명. opencode에 `glm-5.3` 특수 처리 없음 (temperature 자동 지정은 4.6/4.7만, variants 특수 처리는 5.2만 해당) |
 
 ## 4. 디렉터리 구조
 
@@ -97,8 +97,8 @@ opencode-glm/
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled",
   "autoupdate": false,
-  "model": "company-glm/glm-4.7",
-  "small_model": "company-glm/glm-4.7",
+  "model": "company-glm/glm-5.3-flash",
+  "small_model": "company-glm/glm-5.3-flash",
   "provider": {
     "company-glm": {
       "npm": "@ai-sdk/openai-compatible",
@@ -109,8 +109,8 @@ opencode-glm/
         "timeout": 600000
       },
       "models": {
-        "glm-4.7": {
-          "name": "GLM-4.7 (on-prem)",
+        "glm-5.3-flash": {
+          "name": "GLM-5.3-Flash (on-prem)",
           "family": "glm",
           "reasoning": true,
           "tool_call": true,
@@ -154,7 +154,7 @@ OPENCODE_DISABLE_LSP_DOWNLOAD=1
 FastAPI 단일 파일. 실행: `python3 -m uvicorn server:app --host 127.0.0.1 --port $MOCK_PORT` (mock.sh가 감쌈).
 
 환경변수:
-- `MOCK_PORT` (기본 8000), `MOCK_MODEL` (기본 `glm-4.7`), `MOCK_API_KEY` (기본 없음), `MOCK_LOG` (기본 `logs/requests.jsonl`).
+- `MOCK_PORT` (기본 8000), `MOCK_MODEL` (기본 `glm-5.3-flash`), `MOCK_API_KEY` (기본 없음), `MOCK_LOG` (기본 `logs/requests.jsonl`).
 
 엔드포인트:
 - `GET /v1/models` → `{"object":"list","data":[{"id":MOCK_MODEL,"object":"model","owned_by":"vllm"}]}`
@@ -192,12 +192,12 @@ FastAPI 단일 파일. 실행: `python3 -m uvicorn server:app --host 127.0.0.1 -
 순서와 단정:
 1. `scripts/mock.sh start` (trap으로 종료 시 항상 `stop`).
 2. `bin/opencode-glm --version` 출력이 `1.18.27`로 시작.
-3. `bin/opencode-glm models company-glm` 출력에 `company-glm/glm-4.7` 포함.
-4. 임시 디렉터리(`mktemp -d`)에서 `bin/opencode-glm run --format json --model company-glm/glm-4.7 "smoke test"` 실행, stdout을 `logs/verify-run.jsonl`에 저장. 파이썬으로 파싱해:
+3. `bin/opencode-glm models company-glm` 출력에 `company-glm/glm-5.3-flash` 포함.
+4. 임시 디렉터리(`mktemp -d`)에서 `bin/opencode-glm run --format json --model company-glm/glm-5.3-flash "smoke test"` 실행, stdout을 `logs/verify-run.jsonl`에 저장. 파이썬으로 파싱해:
    - `type == "tool_use"`이고 `part.tool == "bash"`, `part.state.status == "completed"`, `part.state.output`에 `GLM_MOCK_TOOL_OK` 포함인 이벤트가 존재.
    - `type == "text"`이고 `part.text`에 `GLM_MOCK_DONE` 포함인 이벤트가 존재.
    - `type == "error"` 이벤트가 없음.
-5. `logs/requests.jsonl`의 이번 실행분에서: `scenario == tool_call`인 항목의 `stream == true`, `tool_names`에 `bash` 포함, `params`에 `thinking` 키 없음, `params.temperature == 1.0`, `params.stream_options.include_usage == true`.
+5. `logs/requests.jsonl`의 이번 실행분에서: `scenario == tool_call`인 항목의 `stream == true`, `tool_names`에 `bash` 포함, `params`에 `thinking` 키 없음, `params.model == "glm-5.3-flash"`, `params.stream_options.include_usage == true`.
 6. opencode 로그 디렉터리(`~/.local/share/opencode/log/`)의 최신 파일에 `Failed to fetch models.dev` 문자열이 없음.
 7. 실패한 단정은 항목 번호와 함께 stderr에 출력하고 종료 코드 1. 전부 통과 시 `VERIFY OK` 출력, 종료 코드 0.
 8. `--live` 옵션(실서버 검증용): 1번(mock 기동)과 5번(mock 로그 단정)을 건너뛰고, 4번은 `GLM_MOCK_*` 문자열 대신 "`tool_use` completed 이벤트 1개 이상, `text` 이벤트 1개 이상, `error` 없음"만 단정한다. 프롬프트는 "현재 디렉터리 파일 목록을 셸 명령으로 확인하고 한 줄로 요약해줘"로 바꿔 tool 호출을 유도한다.
@@ -218,7 +218,7 @@ JSON 이벤트의 필드명(`part.tool`, `part.state.status`, `part.state.output
    |---|---|---|---|
    | GLM-4.5 / 4.5-Air / 4.6 | `glm45` | `glm45` | `--enable-auto-tool-choice` |
    | GLM-4.7 / 4.7-Flash | `glm47` | `glm45` | `--enable-auto-tool-choice` |
-   | GLM-5 / 5.1 | `glm47` | `glm45` | `--enable-auto-tool-choice --chat-template-content-format=string` |
+   | GLM-5 / 5.1 / 5.x (5.3-flash 포함) | `glm47` | `glm45` | `--enable-auto-tool-choice --chat-template-content-format=string`. 5.3은 배포 시점 vLLM 버전의 파서 목록으로 재확인 |
 
    `--served-model-name`은 `opencode.json`의 모델 키와 일치해야 한다. thinking은 vLLM 기본 on이며, 끄려면 모델 `options`에 `"chat_template_kwargs": {"enable_thinking": false}` (opencode가 모델 options를 요청 본문에 합침).
 7. 검증: `verify.sh`를 실서버 대상으로 돌리되 mock 전용 단정(4, 5)은 건너뛰는 `--live` 옵션 사용. `opencode debug config`로 최종 설정 확인.
@@ -232,7 +232,7 @@ JSON 이벤트의 필드명(`part.tool`, `part.state.status`, `part.state.output
 
 ```
 사용자 ─ bin/opencode-glm ─▶ opencode(v1.18.27, TUI/run)
-                                │  POST /v1/chat/completions (stream, tools, temperature 1.0)
+                                │  POST /v1/chat/completions (stream, tools, model=glm-5.3-flash)
                                 ▼
                       mock-glm (127.0.0.1:8000)  ──▶ logs/requests.jsonl
                                 │  SSE: reasoning_content → tool_calls(bash) → [DONE]
